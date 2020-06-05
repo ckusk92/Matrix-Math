@@ -1,0 +1,466 @@
+#!/bin/bash
+
+# Deletes temporary files if trap commands executed
+trap 'rm -f $tempMat$$ $tempMat2$$ $tempCol$$ $tempCol2$$ $tempRow$$ $output$$ datafile' SIGINT	SIGTERM EXIT	
+
+#-----------------------------------------------------------------------------------
+#	Outputs rows and columns of passed in matrix
+#-----------------------------------------------------------------------------------
+
+dims() {
+
+datafilepath="datafile"
+# Display error message if more than one argument
+if [ "$#" -gt 1 ]
+then
+	echo "Please give only one argument to dims" >&2
+	# Exit with non zero return code if error
+	exit 1
+# If no arguments, data coming from standard in
+elif [ "$#" = "0" ]
+then	
+        cat > "$datafilepath"
+
+# Else, data coming from file passed in as parameter
+else
+        datafilepath=$1
+	# If passed in matrix is not readable, output error to STDERR
+	if [ ! -r "$1" ]
+	then
+		echo "File is not readable" >&2
+		# Exit with nonzero return value if error
+		exit 1
+	fi
+fi
+	numRows=0
+	# Loop to determine number of rows and columns
+	while read myLine
+	do
+		numColumns=0
+		# Increment number of rows everytime while loop executes
+		numRows=`expr $numRows + 1`
+		for i in $myLine
+		do
+			# Increment number of columns everytime for loop executes
+			numColumns=`expr $numColumns + 1`
+		done
+	# Reads in from passed in file
+	done < $datafilepath
+		# Outputs dimensions of matrix
+	echo "$numRows $numColumns"
+
+
+	# Delete temporary file
+	rm -f datafile
+
+	# Return 0 if program executes properly
+	exit 0
+}
+
+#-----------------------------------------------------------------------------------
+#	Transposes passed in matrix (turns rows to columns and columns to rows
+#-----------------------------------------------------------------------------------
+
+transpose() {
+
+# Dispaly error message if more than one argument
+datafilepath="datafile"
+if [ "$#" -gt 1 ]
+then
+	echo "Please give only one argument to dims" >&2
+	# Exit with nonzero return code if error
+	exit 0
+# If no argument matrix coming from standard in
+elif [ "$#" = "0" ]
+then	
+        cat > "$datafilepath"
+
+# Else data coming from matrix passed in as paramter
+else
+        datafilepath=$1	
+	# If passed in file is unreadable, display error
+	if [ ! -r "$1" ]
+	then
+		echo "File is not readable" >&2
+		# Exit with nonzero return value if error
+		exit 1
+	fi
+fi
+	
+	# Temporary files used to build transposed matrix
+	tempCol="tempcolfile"
+	tempMat="tempmatfile"
+	
+	# Reads line into myLine variable to be used in for loop	
+	while read myLine
+	do
+		numColumns=0
+		for i in $myLine
+		do
+			# Increment to determine total number of columns
+			numColumns=`expr $numColumns + 1`
+		done
+	# Reads in from passed in file
+	done < $datafilepath
+	
+	# Loop will run once for column in matrix file
+	for ((i = 1; i <= $numColumns; i++)); 
+	do
+		# Places cut column into temporary file	
+		cut -f $i $datafilepath > $tempCol$$
+		# Replaces newlines with tabs, appends to temporary file
+		cat "$tempCol$$" | tr '\n' '\t' >> "$tempMat$$"
+
+		# Remove final tab from each line
+		truncate -s-1 "$tempMat$$"
+	
+		# Adds newline character at end of every row, including final row
+		echo >> "$tempMat$$"
+	done		
+
+	# Outputs created matrix to standard out
+	cat "$tempMat$$"
+
+	# Deletes temporary files
+	rm -f "$tempMat$$ $tempCol$$ datafile"
+
+	# Returns 0 if function is successfull
+	exit 0
+}
+
+#-----------------------------------------------------------------------------------
+#	Displays row mean of passed in matrix
+#-----------------------------------------------------------------------------------
+
+mean() {
+	
+datafilepath="datafile"
+# Display error message if more than one argument
+if [ "$#" -gt 1 ]
+then
+	echo "Please give only one argument to mean" >&2
+	# Exit with non zero return code if error
+	exit 1
+# If no arguments, data coming from standard in
+elif [ "$#" = "0" ]
+then
+        cat > "$datafilepath"
+# Else, data coming from passed in file
+else
+        datafilepath=$1	
+
+	if [ ! -r "$1" ]
+	then
+		echo "File is not readable" >&2
+		# Exit with nonzero return value if error
+		exit 1
+	fi
+fi
+
+	# Temporary files used to build transposed matrix
+	tempCol="tempcolfile"
+	tempRow="temprowfile"
+	tempMat="tempmatfile"
+	
+	# Use number of rows to compute average
+	numRows=0
+	
+	# Reads line into myLine variable to be used in for loop	
+	while read myLine
+	do
+		# Increment number of rows with every while loop execution
+		numRows=`expr $numRows + 1`
+		numColumns=0
+		# Executes loop for every number in line
+		for i in $myLine
+		do
+			# Increment to determine total number of columns
+			numColumns=`expr $numColumns + 1`
+		done
+		# Reads in from passed in file
+	done < $datafilepath
+	# Loop will run once for column in matrix file
+	for ((i = 1; i <= $numColumns; i++)); 
+	do
+		# Places cut column into temporary file	
+		cut -f $i $datafilepath > $tempCol$$
+					
+		# Variables to be used in computing average			
+		sum=0
+
+		# Do while loop to read each element and add them together
+		while read myNumber
+		do
+			# Increment number of rows with every while loop execution
+			sum=`expr $sum + $myNumber`
+				
+		done < $tempCol$$
+			
+		# Convert sum to an average before echoing into temp file
+		sum=`expr \( $sum + \( $numRows / 2 \) \* \( \( $sum \> 0 \) \* 2 - 1 \) \) / $numRows` 
+			
+		# Places average into file			
+		echo $sum >> $tempRow$$
+	done		
+		
+	# Turns newlines into tabs to make a row matrix
+	cat "$tempRow$$" | tr '\n' '\t' > "$tempMat$$"
+
+	# Remove final tab before adding newline
+	truncate -s-1 "$tempMat$$"
+
+	# Adds newline to end of matrix
+	echo >> "$tempMat$$"	
+
+	# Outputs mean matrix
+	cat "$tempMat$$"
+
+	# Deletes temporary files
+	rm -f "$tempMat$$ $tempCol$$ $tempRow$$ datafile"
+
+	# Return 0 if function executes properly
+	exit 0
+}
+
+#-----------------------------------------------------------------------------------
+#	Adds two passed in matrices together
+#-----------------------------------------------------------------------------------
+
+add() {
+	# If number of arguments greater than 2, output error message
+	if [ $# != 2 ]
+	then
+		echo "Please give two arguments to add" >&2
+		# Exit with nonzero number 
+		exit 1
+	elif [ ! -r "$1" ] || [ ! -r "$2" ]
+	then
+		echo "File is not readable" >&2
+		# Exit with nonzero return value if error
+		exit 1
+	else
+		# Gets dimensions of first matrix	
+		while read myLine
+		do
+			# Increment number of rows with every while loop execution
+			numRows=`expr $numRows + 1`
+			numColumns=0
+			# Executes loop for every number in line
+			for i in $myLine
+			do
+				# Increment to determine total number of columns
+				numColumns=`expr $numColumns + 1`
+			done
+		# Reads in from passed in file
+		done < $1
+	
+		# Gets dimensions of second matrix	
+		while read myLine2
+		do
+			# Increment number of rows with every while loop execution
+			numRows2=`expr $numRows2 + 1`
+			numColumns2=0
+			# Executes loop for every number in line
+			for j in $myLine2
+			do
+				# Increment to determine total number of columns
+				numColumns2=`expr $numColumns2 + 1`
+			done
+		# Reads in from passed in file
+		done < $2
+
+		# If number of arguments greater than 2, output error message
+		if [ $numRows != $numRows2 ] || [ $numColumns != $numColumns2 ]
+		then
+			echo "Matrix dimensions do not match" >&2
+			# Exit with nonzero number 
+			exit 1
+		else
+			# Temporary files used to build addition matrix
+			tempMat="tempmatfile"
+			tempMat2="tempmatfile2"			
+			output="outputfile"
+			
+			# Reads in both matrix files at the same time under two different variables
+			while read mat1 <&3 && read mat2 <&4
+			do
+				# Take row from each matrix and place into same file as each eacher
+				echo "$mat1" > $tempMat$$
+				echo "$mat2" >> $tempMat$$
+				
+				# Loop through every column in newly formed temp file
+				for ((i = 1; i <= $numColumns; i++)); 
+				do
+					# Places cut column into temporary file	
+					cut -f $i $tempMat$$ > $tempMat2$$
+					
+					# Find some of matrix elements
+					sum=0
+
+					# Read through both rows of newly formed temp file made from column
+					while read num
+					do							
+						# Add matching elements of mat1 and mat2 togther
+						sum=`expr $sum + $num` 
+					done < $tempMat2$$
+		
+					# Adds 
+					echo -e -n "$sum\t" >> $output$$		
+				done		
+
+
+				# Remove final tab from each line
+				truncate -s-1 "$output$$"
+
+				# Adds newline to end of every row
+				echo >> $output$$
+
+			# Places argument 1 and 2 into mat1 and mat2 variables
+			done 3<$1 4<$2
+		
+			# Displays addition matrix	
+			cat $output$$
+
+		fi
+	fi
+
+	# Deletes temporary files
+	rm -f "$tempMat$$ $tempMat2$$ $output$$"				
+
+	# Return 0 if function executes successfully
+	exit 0
+}
+
+#-----------------------------------------------------------------------------------
+#	Dot multiplies matrices and outputs their product
+#-----------------------------------------------------------------------------------
+
+multiply() {
+	# If number of arguments greater than 2, output error message
+	if [ $# != 2 ]
+	then
+		echo "Please give two arguments to multiply" >&2
+		# Exit with nonzero number 
+		exit 1
+	# If either passed in matrix is unreadable, display error to stderr
+	elif [ ! -r "$1" ] || [ ! -r "$2" ]
+	then
+		echo "One or both matrices are not readable" >&2
+		# Exit with nonzero return value if error
+		exit 1
+	else
+
+	# Gets dimensions of first matrix	
+	while read myLine
+	do
+		# Increment number of rows with every while loop execution
+		numRows=`expr $numRows + 1`
+		numColumns=0
+		# Executes loop for every number in line
+		for i in $myLine
+		do
+			# Increment to determine total number of columns
+			numColumns=`expr $numColumns + 1`
+		done
+
+	# Reads in from first matrix
+	done < $1
+
+	# Gets dimensions of second matrix	
+	while read myLine2
+	do
+		# Increment number of rows with every while loop execution
+		numRows2=`expr $numRows2 + 1`
+		numColumns2=0
+		# Executes loop for every number in line
+		for j in $myLine2
+		do
+			# Increment to determine total number of columns
+			numColumns2=`expr $numColumns2 + 1`
+		done
+
+	# Reads in from second matrix
+	done < $2
+
+	# If matrix dimensions are not appropriate, output error message
+	if [ $numRows2 != $numColumns ]
+	then
+		echo "Matrices must be in form of mn x np where number of columns in first matrix equals number of rows in second" >&2
+		# Exit with nonzero number 
+		exit 1
+	else
+		# Perform the matrix multiplication logic here
+
+		# Temporary files used to build addition matrix
+		tempMat="tempmatfile"
+		tempMat2="tempmatfile2"
+		tempCol="tempCol"
+		tempCol2="tempCol2"
+		tempRow="tempRow"			
+		output="outputfile"
+	
+		# Use while loop to go row by row through matrix one
+		while read mat1
+		do
+			# Place in a second location (bottom wasn't working in every case)
+			for ((z=1; z <= numColumns2; z++))
+			do
+				# Reset sum to zero every iteration of loop ( so it doesn't hold previous sum at start )
+				sum=0
+					
+				# Starts of tempCol with a blank file every loop
+				rm -f "$tempCol$$"
+
+				# Use combination of while loop and cut to build matrix of each column of matrix 2
+				while read mat2
+				do
+					# Reads in every row of matrix 2 into tempRow
+					echo "$mat2" > $tempRow$$						
+					# Places cut column into temporary file	
+					cut -f $z $tempRow$$ >> $tempCol$$
+				done < $2		
+	
+				# Turns the column from matrix two into a row
+				cat "$tempCol$$" | tr '\n' '\t' > "$tempMat$$"
+				echo >> "$tempMat$$"
+					
+				# Combine matrix1 row to matrix2 column
+				echo "$mat1" >> "$tempMat$$"
+
+				# Multiply every element of row from mat 1 with every column from mat2 and place into temp
+				for ((a=1; a <= numColumns; a++));
+				do
+					product=1
+					# Place column into new temp file then mulitply them
+					cut -f $a $tempMat$$ > $tempCol2$$	
+		
+					# Two elements in each column multiplied by each other	
+					while read tempFile
+					do
+						product=`expr $product \* $tempFile`
+					done < $tempCol2$$
+					# Running sum of all products 
+					sum=`expr $sum + $product`						 
+				done
+				# $sum should be the sum of the products and ready to be put in output file 
+				echo -e -n "$sum\t" >> "$output$$" 
+			done
+			# Remove final tab from each line
+			truncate -s-1 "$output$$"
+			# Add newline to output
+			echo >> "$output$$"
+		done < $1
+
+		cat $output$$
+	fi
+	fi
+
+	# Deletes temporary files
+	rm -f "$tempMat$$ $tempMat2$$ $tempCol$$ $tempCol2$$ $tempRow$$ $output$$ datafile"				
+
+	# Return 0 if function executes successfully
+	exit 0
+}
+
+# From lecture material, allows us to selection function based on command line paramter
+$1 "${@:2}"
